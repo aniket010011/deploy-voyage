@@ -1,7 +1,7 @@
 import streamlit as st
 import requests
 
-API_URL = "http://a6720fa00f3da44019c760cf5cdd2607-798674393.eu-north-1.elb.amazonaws.com"  
+API_URL = "http://a6720fa00f3da44019c760cf5cdd2607-798674393.eu-north-1.elb.amazonaws.com"
 
 st.set_page_config(page_title="Voyage Analytics", layout="wide")
 
@@ -10,28 +10,6 @@ feature = st.sidebar.radio(
     "Select Feature",
     ["Price Prediction", "Gender Prediction", "Recommendation"]
 )
-
-
-# -------------------------------
-# COMMON INPUTS
-# -------------------------------
-def get_common_payload(age, company):
-    return {
-        "age": age,
-        "distance": 500,
-        "price_y": 200,
-        "time": 5,
-        "days": 3,
-        "place": "Delhi",
-        "price_x": 150,
-        "company": company,
-        "gender": "male",
-        "from": "Mumbai",
-        "to": "Delhi",
-        "flightType": "Economy",
-        "agency": "MakeMyTrip"
-    }
-
 
 # -------------------------------
 # PRICE PREDICTION
@@ -81,21 +59,40 @@ if feature == "Price Prediction":
 
 
 # -------------------------------
-# GENDER PREDICTION
+# GENDER PREDICTION (IMPROVED)
 # -------------------------------
 elif feature == "Gender Prediction":
     st.title("🧑 Predict Gender")
 
-    age = st.number_input("Age", 1, 100, 30)
-    company = st.selectbox("Airline", ["Indigo", "Air India", "SpiceJet"])
+    col1, col2 = st.columns(2)
+
+    with col1:
+        age = st.number_input("Age", 1, 100, 30)
+        company = st.selectbox("Airline", ["Indigo", "Air India", "SpiceJet"])
+
+    with col2:
+        from_loc = st.text_input("From", "Mumbai")
+        to_loc = st.text_input("To", "Delhi")
+
+    flight_type = st.selectbox("Flight Type", ["Economy", "Business"])
+    agency = st.selectbox("Agency", ["MakeMyTrip", "Goibibo", "Yatra"])
 
     if st.button("Predict Gender"):
-        payload = get_common_payload(age, company)
+
+        payload = {
+            "age": age,
+            "company": company,
+            "from_location": from_loc,
+            "to_location": to_loc,
+            "flightType": flight_type,
+            "agency": agency
+        }
 
         res = requests.post(f"{API_URL}/predict_gender", json=payload)
 
         if res.status_code == 200:
             data = res.json()
+
             if "predicted_gender" in data:
                 st.success(f"👤 Predicted Gender: {data['predicted_gender']}")
             else:

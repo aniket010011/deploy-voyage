@@ -1,7 +1,7 @@
 import streamlit as st
 import requests
 
-API_URL = "http://<YOUR-ELB-URL>"  # 🔴 replace this
+API_URL = "http://a6720fa00f3da44019c760cf5cdd2607-798674393.eu-north-1.elb.amazonaws.com"  
 
 st.set_page_config(page_title="Voyage Analytics", layout="wide")
 

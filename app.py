@@ -42,8 +42,8 @@ if page == "📈 Price Prediction":
             "price_x": 150,
             "company": "Indigo",
             "gender": "male",
-            "from": "Mumbai",
-            "to": "Delhi",
+            "from_location": "Mumbai",
+            "to_location": "Delhi",
             "flightType": "Economy",
             "agency": "MakeMyTrip"
         }

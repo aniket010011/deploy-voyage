@@ -15,7 +15,7 @@ page = st.sidebar.radio(
 
 st.title("✈️ Voyage Analytics Platform")
 
-# ---------------- REGRESSION ---------------- #
+# ---------------- PRICE PREDICTION ---------------- #
 if page == "📈 Price Prediction":
 
     st.header("📈 Predict Travel Price")
@@ -25,10 +25,12 @@ if page == "📈 Price Prediction":
     with col1:
         age = st.number_input("Age", value=30)
         distance = st.number_input("Distance", value=500)
+        days = st.number_input("Days", value=3)
 
     with col2:
         price = st.number_input("Base Price", value=200)
-        days = st.number_input("Days", value=3)
+        airline = st.selectbox("Airline", ["Indigo", "Air India", "SpiceJet"])
+        gender = st.selectbox("Gender", ["male", "female"])
 
     if st.button("Predict Price"):
 
@@ -40,10 +42,10 @@ if page == "📈 Price Prediction":
             "days": days,
             "place": "Delhi",
             "price_x": 150,
-            "company": "Indigo",
-            "gender": "male",
-            "from_location": "Mumbai",
-            "to_location": "Delhi",
+            "company": airline,
+            "gender": gender,
+            "from_location": "Mumbai",   # ✅ FIXED
+            "to_location": "Delhi",      # ✅ FIXED
             "flightType": "Economy",
             "agency": "MakeMyTrip"
         }
@@ -55,20 +57,15 @@ if page == "📈 Price Prediction":
             result = res.json()["predicted_total_price"]
             st.success(f"💰 Predicted Price: {result:.2f}")
         else:
-            st.error("API Error")
+            st.error(res.text)
 
-# ---------------- CLASSIFICATION ---------------- #
+# ---------------- GENDER ---------------- #
 elif page == "🧑 Gender Prediction":
 
     st.header("🧑 Predict Gender")
 
-    col1, col2 = st.columns(2)
-
-    with col1:
-        age = st.number_input("Age", value=30)
-
-    with col2:
-        company = st.selectbox("Airline", ["Indigo", "Air India", "SpiceJet"])
+    age = st.number_input("Age", value=30)
+    company = st.selectbox("Airline", ["Indigo", "Air India", "SpiceJet"])
 
     if st.button("Predict Gender"):
 
@@ -81,9 +78,15 @@ elif page == "🧑 Gender Prediction":
             res = requests.post(f"{API_URL}/predict_gender", json=payload)
 
         if res.status_code == 200:
-            st.success(f"👤 Predicted Gender: {res.json()['gender']}")
+            response = res.json()
+
+            if "gender" in response:
+                st.success(f"👤 Predicted Gender: {response['gender']}")
+            else:
+                st.error(response)
+
         else:
-            st.error("API Error")
+            st.error(res.text)
 
 # ---------------- RECOMMENDATION ---------------- #
 elif page == "🎯 Recommendation":
@@ -98,14 +101,19 @@ elif page == "🎯 Recommendation":
             res = requests.get(f"{API_URL}/recommend", params={"user_id": user_id})
 
         if res.status_code == 200:
-            recs = res.json().get("recommendations", [])
+            response = res.json()
 
-            st.success("✨ Recommendations:")
+            if "recommendations" in response:
+                recs = response["recommendations"]
 
-            if len(recs) == 0:
-                st.warning("No recommendations found")
+                if len(recs) == 0:
+                    st.warning("No recommendations found")
+                else:
+                    st.success("✨ Recommendations:")
+                    for i, r in enumerate(recs, 1):
+                        st.write(f"{i}. {r}")
             else:
-                for i, r in enumerate(recs, 1):
-                    st.write(f"{i}. {r}")
+                st.error(response)
+
         else:
-            st.error("API Error")
+            st.error(res.text)

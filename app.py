@@ -1,125 +1,65 @@
 import streamlit as st
-import requests
+import pandas as pd
+import mlflow.pyfunc
 
-API_URL = "http://a6720fa00f3da44019c760cf5cdd2607-798674393.eu-north-1.elb.amazonaws.com"
+st.set_page_config(page_title="Voyage Analytics", layout="centered")
 
-st.set_page_config(page_title="Voyage Analytics", layout="wide")
+# -----------------------------
+# LOAD MODELS
+# -----------------------------
+@st.cache_resource
+def load_models():
+    price_model = mlflow.pyfunc.load_model("models:/VoyagePriceModel@production")
+    gender_model = mlflow.pyfunc.load_model("models:/VoyageGenderModel@production")
+    return price_model, gender_model
 
-st.sidebar.title("✈️ Voyage Analytics")
-feature = st.sidebar.radio(
-    "Select Feature",
-    ["Price Prediction", "Gender Prediction", "Recommendation"]
-)
+price_model, gender_model = load_models()
 
-# -------------------------------
-# PRICE PREDICTION
-# -------------------------------
-if feature == "Price Prediction":
-    st.title("📈 Predict Travel Price")
+st.title("✈️ Voyage Analytics Dashboard")
 
-    col1, col2 = st.columns(2)
+# -----------------------------
+# USER INPUT
+# -----------------------------
+st.header("Enter Travel Details")
 
-    with col1:
-        age = st.number_input("Age", 1, 100, 30)
-        distance = st.number_input("Distance", 0, 5000, 500)
-        days = st.number_input("Days", 1, 30, 3)
+from_city = st.text_input("From")
+to_city = st.text_input("To")
+flight_type = st.selectbox("Flight Type", ["Economy", "Business"])
 
-    with col2:
-        base_price = st.number_input("Base Price", 0, 10000, 200)
-        company = st.selectbox("Airline", ["Indigo", "Air India", "SpiceJet"])
-        gender = st.selectbox("Gender", ["male", "female"])
+price_x = st.number_input("Base Price", value=1000.0)
+distance = st.number_input("Distance", value=500.0)
 
-    if st.button("Predict Price"):
-        payload = {
-            "age": age,
-            "distance": distance,
-            "price_y": base_price,
-            "time": 5,
-            "days": days,
-            "place": "Delhi",
-            "price_x": 150,
-            "company": company,
-            "gender": gender,
-            "from": "Mumbai",
-            "to": "Delhi",
-            "flightType": "Economy",
-            "agency": "MakeMyTrip"
-        }
+travel_month = st.slider("Travel Month", 1, 12, 6)
+travel_day = st.slider("Travel Day", 1, 31, 15)
 
-        res = requests.post(f"{API_URL}/predict_price", json=payload)
-
-        if res.status_code == 200:
-            data = res.json()
-            if "predicted_total_price" in data:
-                st.success(f"💰 Predicted Price: {round(data['predicted_total_price'], 2)}")
-            else:
-                st.error(data)
-        else:
-            st.error("API Error")
+return_month = st.slider("Return Month", 1, 12, 6)
+return_day = st.slider("Return Day", 1, 31, 20)
 
 
-# -------------------------------
-# GENDER PREDICTION
-# -------------------------------
-elif feature == "Gender Prediction":
-    st.title("🧑 Predict Gender")
+# -----------------------------
+# PREDICT
+# -----------------------------
+if st.button("Predict"):
 
-    col1, col2 = st.columns(2)
+    input_data = {
+        "from": from_city,
+        "to": to_city,
+        "flightType": flight_type,
+        "price_x": price_x,
+        "distance": distance,
+        "travel_month": travel_month,
+        "travel_day": travel_day,
+        "return_month": return_month,
+        "return_day": return_day
+    }
 
-    with col1:
-        age = st.number_input("Age", 1, 100, 30)
-        company = st.selectbox("Airline", ["Indigo", "Air India", "SpiceJet"])
+    df = pd.DataFrame([input_data])
 
-    with col2:
-        from_loc = st.text_input("From", "Mumbai")
-        to_loc = st.text_input("To", "Delhi")
+    # Price Prediction
+    price_pred = price_model.predict(df)[0]
 
-    flight_type = st.selectbox("Flight Type", ["Economy", "Business"])
-    agency = st.selectbox("Agency", ["MakeMyTrip", "Goibibo", "Yatra"])
+    # Gender Prediction
+    gender_pred = gender_model.predict(df)[0]
 
-    if st.button("Predict Gender"):
-
-        payload = {
-            "age": age,
-            "company": company,
-            "from_location": from_loc,
-            "to_location": to_loc,
-            "flightType": flight_type,
-            "agency": agency
-        }
-
-        res = requests.post(f"{API_URL}/predict_gender", json=payload)
-
-        if res.status_code == 200:
-            data = res.json()
-
-            if "predicted_gender" in data:
-                st.success(f"👤 Predicted Gender: {data['predicted_gender']}")
-            else:
-                st.error(data)
-        else:
-            st.error("API Error")
-
-
-# -------------------------------
-# RECOMMENDATION
-# -------------------------------
-else:
-    st.title("🎯 Travel Recommendations")
-
-    user_id = st.number_input("User ID", 1, 1000, 1)
-
-    if st.button("Get Recommendations"):
-        res = requests.get(f"{API_URL}/recommend?user_id={user_id}")
-
-        if res.status_code == 200:
-            data = res.json()
-
-            if "recommendations" in data:
-                st.success("✨ Recommendations:")
-                for i, rec in enumerate(data["recommendations"], 1):
-                    st.write(f"{i}. {rec}")
-            else:
-                st.error(data)
-        else:
-            st.error("API Error")
+    st.success(f"💰 Predicted Travel Price: {price_pred:.2f}")
+    st.success(f"🧑 Predicted Gender: {gender_pred}")

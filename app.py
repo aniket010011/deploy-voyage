@@ -59,7 +59,7 @@ if feature == "Price Prediction":
 
 
 # -------------------------------
-# GENDER PREDICTION (IMPROVED)
+# GENDER PREDICTION
 # -------------------------------
 elif feature == "Gender Prediction":
     st.title("🧑 Predict Gender")

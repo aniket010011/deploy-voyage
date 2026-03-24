@@ -10,13 +10,14 @@ mlflow.set_tracking_uri("sqlite:///mlflow.db")
 @st.cache_resource
 def load_models():
     try:
-        reg_model = mlflow.pyfunc.load_model("models:/VoyagePriceModel/latest")
-        clf_model = mlflow.pyfunc.load_model("models:/VoyageGenderModel/latest")
+        # We point directly to the files in the root of the models folder
+        reg_model = joblib.load("models/regression_model.pkl")
+        clf_model = joblib.load("models/classification_model.pkl")
         user_sim = joblib.load("models/user_similarity.pkl")
         user_itm = joblib.load("models/user_item.pkl")
         return reg_model, clf_model, user_sim, user_itm
     except Exception as e:
-        st.error(f"Failed to load models. Ensure mlflow_tracking.py ran successfully. Error: {e}")
+        st.error(f"Load failed. Ensure today's .pkl files are in the 'models' folder. Error: {e}")
         return None, None, None, None
 
 regression_model, classification_model, user_similarity, user_item = load_models()

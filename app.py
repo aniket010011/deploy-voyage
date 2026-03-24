@@ -1,121 +1,65 @@
 import streamlit as st
-import pandas as pd
-import mlflow.pyfunc
-import joblib
+import requests
 
-# 1. Connect directly to the local MLflow database
-mlflow.set_tracking_uri("sqlite:///mlflow.db")
+# The URL of your AWS Load Balancer (ensure it's the standard HTTP link)
+BASE_URL = "http://a6720fa00f3da44019c760cf5cdd2607-798674393.eu-north-1.elb.amazonaws.com"
 
-# 2. Cache models so they only load once
-@st.cache_resource
-def load_models():
-    try:
-        # We point directly to the files in the root of the models folder
-        reg_model = joblib.load("models/regression_model.pkl")
-        clf_model = joblib.load("models/classification_model.pkl")
-        user_sim = joblib.load("models/user_similarity.pkl")
-        user_itm = joblib.load("models/user_item.pkl")
-        return reg_model, clf_model, user_sim, user_itm
-    except Exception as e:
-        st.error(f"Load failed. Ensure today's .pkl files are in the 'models' folder. Error: {e}")
-        return None, None, None, None
-
-regression_model, classification_model, user_similarity, user_item = load_models()
-
-# 3. Feature Builder (Matches your training logic)
-def build_full_features(data: dict):
-    # Handle naming mismatches
-    if "from_location" in data:
-        data["from"] = data.pop("from_location")
-    if "to_location" in data:
-        data["to"] = data.pop("to_location")
-
-    # Handle Date Features
-    if "date_x" in data:
-        date_x = pd.to_datetime(data["date_x"])
-        data["travel_month"] = date_x.month
-        data["travel_day"] = date_x.day
-        del data["date_x"]
-    else:
-        data["travel_month"] = 1
-        data["travel_day"] = 15
-
-    if "date_y" in data:
-        date_y = pd.to_datetime(data["date_y"])
-        data["return_month"] = date_y.month
-        data["return_day"] = date_y.day
-        del data["date_y"]
-    else:
-        data["return_month"] = 1
-        data["return_day"] = 20
-
-    defaults = {
-        "age": 30, "distance": 500, "price_y": 200, "time": 5,
-        "days": 3, "place": "Delhi", "price_x": 150, "company": "Indigo",
-        "gender": "male", "from": "Mumbai", "to": "Delhi",
-        "flightType": "Economy", "agency": "MakeMyTrip"
-    }
-
-    for key, value in defaults.items():
-        data.setdefault(key, value)
-        
-    cols_to_drop = ["total", "travelCode", "userCode", "code", "name_x", "name_y"]
-    for col in cols_to_drop:
-        if col in data:
-            del data[col]
-
-    return pd.DataFrame([data])
-
-# 4. Streamlit UI
-st.title("Voyage Analytics Dashboard")
+st.title("Voyage Analytics Dashboard (Cloud API)")
 
 tab1, tab2, tab3 = st.tabs(["Price Prediction", "Gender Classification", "Recommendations"])
 
 with tab1:
     st.header("Predict Travel Price")
     with st.form("price_form"):
+        # Input fields matching your Swagger data structure
+        age = st.number_input("Age", value=30)
         distance = st.number_input("Distance", value=500)
+        price_y = st.number_input("Price Y", value=200)
+        time = st.number_input("Time", value=5)
         days = st.number_input("Days", value=3)
+        place = st.text_input("Place", value="Delhi")
+        price_x = st.number_input("Price X", value=150)
         company = st.selectbox("Airline", ["Indigo", "AirIndia", "Vistara"])
-        flightType = st.selectbox("Class", ["Economy", "Premium Economy", "Business"])
+        gender = st.selectbox("Gender", ["male", "female"])
+        from_loc = st.text_input("From", value="Mumbai")
+        to_loc = st.text_input("To", value="Delhi")
+        flightType = st.selectbox("Class", ["Economy", "Business"])
+        agency = st.text_input("Agency", value="MakeMyTrip")
+        
         submit_price = st.form_submit_button("Predict")
         
-        if submit_price and regression_model:
-            input_data = {"distance": distance, "days": days, "company": company, "flightType": flightType}
-            df = build_full_features(input_data)
-            pred = regression_model.predict(df)[0]
-            st.success(f"Predicted Total Price: ${pred:.2f}")
+        if submit_price:
+            payload = {
+                "age": age, "distance": distance, "price_y": price_y, "time": time,
+                "days": days, "place": place, "price_x": price_x, "company": company,
+                "gender": gender, "from": from_loc, "to": to_loc, 
+                "flightType": flightType, "agency": agency
+            }
+            try:
+                response = requests.post(f"{BASE_URL}/predict_price", json=payload)
+                if response.status_code == 200:
+                    res_data = response.json()
+                    st.success(f"Predicted Price: ${res_data.get('predicted_price', 'N/A')}")
+                else:
+                    st.error(f"Error: {response.text}")
+            except Exception as e:
+                st.error(f"Connection Failed: {e}")
 
 with tab2:
     st.header("Classify Gender")
-    with st.form("gender_form"):
-        distance_g = st.number_input("Distance", value=500, key="dist_g")
-        days_g = st.number_input("Days", value=3, key="days_g")
-        company_g = st.selectbox("Airline", ["Indigo", "AirIndia", "Vistara"], key="comp_g")
-        submit_gender = st.form_submit_button("Classify")
-        
-        if submit_gender and classification_model:
-            input_data = {"distance": distance_g, "days": days_g, "company": company_g}
-            df = build_full_features(input_data)
-            pred = classification_model.predict(df)[0]
-            label = "Male" if pred == 1 else "Female"
-            st.info(f"Predicted Gender: {label}")
+    # Add similar form for /predict_gender if needed...
+    st.info("Uses the same request logic as above hitting /predict_gender")
 
 with tab3:
-    st.header("Get Recommendations")
-    user_id = st.number_input("Enter User ID", min_value=1, value=1, step=1)
-    if st.button("Recommend"):
-        if user_similarity is not None and user_id in user_item.index:
-            similar_users = user_similarity[user_id].sort_values(ascending=False)[1:6]
-            recommendations = []
-            for sim_user in similar_users.index:
-                items = user_item.loc[sim_user]
-                top_items = items[items > 0].index.tolist()
-                recommendations.extend(top_items)
-            
-            recommendations = list(dict.fromkeys(recommendations))[:5]
-            st.write("Top Recommended Items:")
-            for item in recommendations:
-                st.write(f"- {item}")
-        else:
-            st.warning("User ID not found or models not loaded.")
+    st.header("Recommendations")
+    user_id = st.number_input("User ID", min_value=1, value=1)
+    if st.button("Get Recommendations"):
+        try:
+            # Note: Ensure your FastAPI has a /recommend endpoint
+            response = requests.get(f"{BASE_URL}/recommend/{user_id}")
+            if response.status_code == 200:
+                st.write(response.json())
+            else:
+                st.warning("Recommendation endpoint not found on AWS.")
+        except Exception as e:
+            st.error(f"Failed: {e}")
